@@ -7,6 +7,9 @@ local version = "1.4.151f1"
 local changelog = [[
 -- Expect a value editor and other implementations in a future update!!
 
+[v1.4.151f1.1]
+-- get path now returns a better path
+
 [v1.4.151f1]
 -- right click on scripts and now you can save/copy/get their path
 -- removed broken cursor because it to my knowledge theres no way to fix it
@@ -493,6 +496,22 @@ end
 
 old = decompile
 
+function getPath(fullname)
+    
+    local str=fullname:split(".")
+    local returnthis='game:GetService("'
+    local length=string.len(str[1])+1
+    
+    returnthis=returnthis..str[1]
+    if str[2]==nil then
+        returnthis=returnthis..'")'
+    else
+        returnthis=returnthis..'")'
+    end        
+    returnthis=returnthis..string.sub(fullname,length)
+    return returnthis
+end    
+
 function createButton(parent, info)
 	local key		= math.random(10000000,99999999)
 	local expand	= false
@@ -527,7 +546,6 @@ function createButton(parent, info)
 	    
 	    if screenGui:FindFirstChild("buttonframe") then
 	        screenGui.buttonframe:Destroy()
-	        return
 	    end 
 	    
 	    local copyscript=button:Clone()
@@ -604,7 +622,7 @@ function createButton(parent, info)
 	    
 	    getpath.Clicked.MouseButton1Click:Connect(function()
 	        buttonframe:Destroy()
-	        setclipboard(obj:GetFullName())
+	        setclipboard(getPath(obj:GetFullName()))
 	    end)
 	    
 	end)
