@@ -7,6 +7,9 @@ local version = "1.4.151f1"
 local changelog = [[
 -- Expect a value editor and other implementations in a future update!!
 
+[v1.4.151f1.2]
+-- LocalScript icon fixed
+
 [v1.4.151f1.1]
 -- get path now returns a better path
 
@@ -144,7 +147,7 @@ local tabsFrame			= backdrop.Tabs
 local textures = {
 	['folder']			= "2950788693";
 
-	['localscript']		= "99340858";
+	['localscript']		= "11047413712";
 	['modulescript']	= "413367412";
 
 	['function']		= "2759601950";
@@ -550,6 +553,7 @@ function createButton(parent, info)
 	    
 	    local copyscript=button:Clone()
 	    local savescript=button:Clone()
+	    local upvalues=button:Clone()
 	    local getpath=button:Clone()
 	    
 	    local buttonframe=Instance.new("Frame",screenGui)
@@ -608,6 +612,7 @@ function createButton(parent, info)
 		    	writefile(name..".lua", value)
 		    end
 	    end)
+	    
 	    end
 	    
 	    
