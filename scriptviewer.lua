@@ -3,82 +3,35 @@
 -- An api (not mine) was used to make syntax highlighting work since my way was stupid
 -- Yeas this ui is just like dnspy i did that on purpose
 
-local version = "1.4.151f1"
+local version = "1.5"
 local changelog = [[
 -- Expect a value editor and other implementations in a future update!!
 
-[v1.4.151f1.2]
+[v1.5]
+-- removed the two buttons in the up left corner because they were useless because of the new update
+-- notification now shows the ScriptView icon
+-- ScriptView icon moved and centered since it was being covered by the roblox ui
+-- bigger script explorer and bigger script frame
+-- you can now search for scripts with the new textbox in script explorer
+-- patched constants/upvalues/enviveronment showing when right clicking an expanded local script
+
+[v1.4.22]
 -- LocalScript icon fixed
 
-[v1.4.151f1.1]
+[v1.4.21]
 -- get path now returns a better path
 
-[v1.4.151f1]
+[v1.4.2]
 -- right click on scripts and now you can save/copy/get their path
 -- removed broken cursor because it to my knowledge theres no way to fix it
 
-[v1.4.151f0]
--- fate 4434 took over
-
-[v 1.4.15]
--- Modified for public release yaaay
--- Deobfuscated
--- Final update?? Who knows??
-
-[v 1.4.14]
--- Updated to use Synapse X's new decompiler
-
-[v 1.4.13]
--- Removed tostring hook
-
-[v 1.4.12]
--- The source is now obfuscated
-
-[v 1.4.11]
--- "Operators" are now highlighted
-
-[v 1.4.10]
--- UI color changes
--- Environment editor sneak peek
-
-[v 1.4.8 - 9]
--- Internal changes
--- CoreGui check updates
-
-[v 1.4.7]
--- UI title updates
--- Login instructions
--- New CoreGui detection bypass
--- Changes with name handling
-
-[v 1.4.3]
--- Improved whitelist
- 
-[v 1.4.2]
--- Internal fixes
--- New CoreGui detection bypass
--- New toolbar functionality
--- New whitelist & login UI!
-
-[v 1.2.3]
--- Internal fixes
--- Slightly faster decompiling
-
-[v 1.2.1]
--- UI total recolor
--- Fixed empty lines not appearing
-
-[v 1.1.4]
--- New syntax highlighting API
--- Optimized decompiling
--- Detects services containing scripts
--- Fixed horizontal scrolling bug]]
+[v1.4.1511]
+-- fate 4434 took over]]
 
 --============================================================--
 
 --local screenGui			= script.Parent
-local screenGui			= game:GetObjects("rbxassetid://2971927607")[1]
-screenGui.Cursor:Destroy()
+local screenGui			= game:GetObjects("rbxassetid://11061575069")[1]
 local backdrop			= screenGui.Backdrop
 local cSource, cName	= "", ""
 local localPlayer		= game:GetService("Players").LocalPlayer
@@ -100,11 +53,11 @@ local StarterGui = game:GetService("StarterGui")
 StarterGui:SetCore("SendNotification", {
 	Title = "ScriptView loaded",
 	Text = "Press the Home button or Right Shift to open!",
+	Icon = "rbxassetid://2950787461"
 })
 
 --\\ the stuff
-local loginGui = screenGui.Login
-local blank = loginGui.Value.Value
+local blank = "ââ"
 
 local UIS				= game:GetService("UserInputService")
 local localPlayer		= game:GetService("Players").LocalPlayer
@@ -118,14 +71,6 @@ local debuggerFrame		= backdrop.Debugger
     local debugScrollRight	= debuggerFrame.HorizontalFrame.ScrollRight
 
     local debugTemplate		= scriptList.Template; debugTemplate.Parent = nil;
-
-
-local toolbarFrame	= backdrop.Toolbar
-  local Edit			= toolbarFrame.Edit
-  local File			= toolbarFrame.File
-
-local toolbarArea = backdrop.ToolbarArea
-
 
 local scriptFrame		= backdrop.ScriptFrame
   local sourceFrame		= scriptFrame.Source
@@ -500,11 +445,9 @@ end
 old = decompile
 
 function getPath(fullname)
-    
     local str=fullname:split(".")
     local returnthis='game:GetService("'
     local length=string.len(str[1])+1
-    
     returnthis=returnthis..str[1]
     if str[2]==nil then
         returnthis=returnthis..'")'
@@ -545,6 +488,8 @@ function createButton(parent, info)
 		loadSourceFromInfo(info)
 	end)
 	
+	local contents=button.Contents
+	
 	button.Clicked.MouseButton2Click:Connect(function()
 	    
 	    if screenGui:FindFirstChild("buttonframe") then
@@ -553,8 +498,13 @@ function createButton(parent, info)
 	    
 	    local copyscript=button:Clone()
 	    local savescript=button:Clone()
-	    local upvalues=button:Clone()
 	    local getpath=button:Clone()
+	    copyscript.Contents:Destroy()
+	    savescript.Contents:Destroy()
+	    getpath.Contents:Destroy()
+	    copyscript.Size=UDim2.new(0,300,0,25)
+	    savescript.Size=UDim2.new(0,300,0,25)
+	    getpath.Size=UDim2.new(0,300,0,25)
 	    
 	    local buttonframe=Instance.new("Frame",screenGui)
 	    buttonframe.BackgroundTransparency=1
@@ -603,13 +553,13 @@ function createButton(parent, info)
 	    savescript.Clicked.MouseButton1Click:Connect(function()
             buttonframe:Destroy()
             if class == "localscript" or class == "modulescript" then
-		    	writefile(name..".lua", decompile(obj))
+		    	writefile(game.PlaceId.."_"..name..".lua", decompile(obj))
 		    elseif class == "function" then
-		    	writefile(name..".lua", decompile(value))
+		    	writefile(game.PlaceId.."_"..name..".lua", decompile(value))
 		    elseif class == "folder" then
 		    	writefile(name..".lua", tostring(obj))
 	    	elseif class == "text" then
-		    	writefile(name..".lua", value)
+		    	writefile(game.PlaceId.."_"..name..".lua", value)
 		    end
 	    end)
 	    
@@ -730,82 +680,6 @@ end
 --============================================================--
 
 do
-	local function bindToButton(button, func)
-		button.MouseButton1Click:Connect(func)
-		button.MouseEnter:Connect(function()
-			Tween(button, "Out", "Sine", 0.1, {
-				BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-			})
-		end)
-		button.MouseLeave:Connect(function()
-			Tween(button, "Out", "Sine", 0.1, {
-				BackgroundColor3 = Color3.fromRGB(27, 27, 27)
-			})
-		end)
-	end
-	
-	local function openToolbar(toolbar)
-		Tween(toolbar.Selection, "InOut", "Sine", 0.25, {
-			Size = UDim2.new(0, 183, 0, 50)
-		})
-		Tween(toolbar, "InOut", "Sine", 0.25, {
-			BackgroundTransparency = 0
-		})
-	end
-	
-	local function shutToolbar(toolbar)
-		Tween(toolbar.Selection, "InOut", "Sine", 0.25, {
-			Size = UDim2.new(0, 183, 0, 0)
-		})
-		Tween(toolbar, "InOut", "Sine", 0.25, {
-			BackgroundTransparency = 1
-		})
-	end
-	
-	local function bindToolbar(bar)
-		bar.MouseButton1Down:Connect(function()
-			for i, v in pairs(toolbarFrame:GetChildren()) do
-				if v.Name ~= "UIListLayout" then
-					shutToolbar(v)
-				end
-			end
-			openToolbar(bar)
-		end)
-	end
-	
-	bindToButton(Edit.Selection.Highlighting, function()
-		syntax = not syntax
-		Edit.Selection.Highlighting.Icon.Image = (syntax and "rbxassetid://2762412562") or "rbxassetid://2762412069"
-	end)
-	
-	bindToButton(Edit.Selection.Clear, function()
-		loadSource("")
-	end)
-	
-	bindToButton(File.Selection.CopyStr, function()
-		setclipboard(cSource)
-	end)
-	
-	bindToButton(File.Selection.SaveStr, function()
-		writefile(tostring(cName) .. ".lua", cSource)
-	end)
-	
-	toolbarArea.MouseLeave:Connect(function()
-		for i, v in pairs(toolbarFrame:GetChildren()) do
-			if v.Name ~= "UIListLayout" then
-				shutToolbar(v)
-			end
-		end
-	end)
-	
-	for i, v in pairs(toolbarFrame:GetChildren()) do
-		if v.Name ~= "UIListLayout" then
-			bindToolbar(v)
-		end
-	end
-end
-
-do
 	scriptScrollUp.MouseButton1Down:Connect(function()
 		local sF, canvas = sourceFrame, sourceFrame.CanvasPosition
 		Tween(sF, "Out", "Sine", 0.25, {
@@ -867,33 +741,43 @@ end
 
 local open = false
 
-local about = "--\ ScriptView " .. version .. "\--\n--\ Developed by Litten \--".."\n\n"..changelog
+local about = "--\ ScriptView " .. version .. "\--\n--\ Developed by Fate \--".."\n-- Original: https://v3rmillion.net/showthread.php?tid=846255 --\n\n"..changelog
 
 backdrop.Title.Label.Text = "ScriptView "..version
 
 local aboutinfo = {Name="About", Type="Text", Obj=nil, Value=about}
 
-createButton(scriptList,
+function createFolders()
+    
+local buttons={}
+
+table.insert(buttons,createButton(scriptList,
 	{Name="Active Scripts", Type="Folder", Obj=game}
-)
+).Name)
 
-createButton(scriptList,
+table.insert(buttons,createButton(scriptList,
 	{Name="LocalPlayer", Type="Folder", Obj=game:GetService("Players").LocalPlayer}
-)
+).Name)
 
-createButton(scriptList,
+table.insert(buttons,createButton(scriptList,
 	{Name="Nil", Type="Folder", Obj=nil}
-)
+).Name)
 
 for i, v in pairs(game:GetChildren()) do
 	pcall(function()
 		if v:FindFirstChildWhichIsA("LocalScript", true) or v:FindFirstChildWhichIsA("ModuleScript", true) then
-			createButton(scriptList,
+			table.insert(buttons,createButton(scriptList,
 				{Name=v.ClassName, Type="Folder", Obj=v}
-			)
+			).Name)
 		end
 	end)
 end
+
+return buttons
+
+end
+
+local buttons=createFolders()
 
 local aboutButton = createTab(aboutinfo, 1)
 
@@ -943,6 +827,28 @@ UIS.InputBegan:Connect(function(input)
 			Close()
 		end
 	end
+end)
+
+local scriptsingame=getScriptsOfParent(game)
+
+debuggerFrame.Find.FocusLost:Connect(function()
+    if debuggerFrame.Find.Text=="" then return end
+    for i,v in pairs(scriptsingame) do
+        local lowerN=v.Name:lower()
+        local lowerT=debuggerFrame.Find.Text:lower()
+        if lowerN:find(lowerT) then
+            local splitname=v:GetFullName():split(".")
+            local folder=splitname[1]
+            if table.find(buttons,folder) then
+                createButton(scriptList[buttons[table.find(buttons,folder)]], {
+					Name = v.Name,
+					Type = v.ClassName,
+					Obj = v
+				})
+				scriptList[buttons[table.find(buttons,folder)]].Expand.Image = "rbxassetid://2757012309"
+            end    
+        end    
+    end
 end)
 
 while wait() do
