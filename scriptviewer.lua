@@ -3,9 +3,12 @@
 -- An api (not mine) was used to make syntax highlighting work since my way was stupid
 -- Yeas this ui is just like dnspy i did that on purpose
 
-local version = "1.5"
+local version = "1.5.1"
 local changelog = [[
 -- Expect a value editor and other implementations in a future update!!
+
+[v1.5.1]
+-- fixed script finder
 
 [v1.5]
 -- removed the two buttons in the up left corner because they were useless because of the new update
@@ -830,9 +833,22 @@ UIS.InputBegan:Connect(function(input)
 end)
 
 local scriptsingame=getScriptsOfParent(game)
-
+local expandedlist={}
 debuggerFrame.Find.FocusLost:Connect(function()
-    if debuggerFrame.Find.Text=="" then return end
+    if debuggerFrame.Find.Text=="" then 
+        if expandedlist~={} then
+            for i,v in pairs(expandedlist) do
+                v.Expand.Image="rbxassetid://2757012592"
+                for l,x in pairs(v.Contents:GetChildren()) do
+                    if not x:IsA("UIListLayout") then
+                        x:Destroy()
+                    end    
+                end    
+            end    
+        end
+        expandedlist={}
+        return
+    end
     for i,v in pairs(scriptsingame) do
         local lowerN=v.Name:lower()
         local lowerT=debuggerFrame.Find.Text:lower()
@@ -840,6 +856,9 @@ debuggerFrame.Find.FocusLost:Connect(function()
             local splitname=v:GetFullName():split(".")
             local folder=splitname[1]
             if table.find(buttons,folder) then
+                if not table.find(expandedlist,scriptList[buttons[table.find(buttons,folder)]]) then
+                    table.insert(expandedlist,scriptList[buttons[table.find(buttons,folder)]])
+                end                
                 createButton(scriptList[buttons[table.find(buttons,folder)]], {
 					Name = v.Name,
 					Type = v.ClassName,
