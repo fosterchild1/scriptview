@@ -3,20 +3,27 @@
 -- An api (not mine) was used to make syntax highlighting work since my way was stupid
 -- Yeas this ui is just like dnspy i did that on purpose
 
-local version = "1.5.1"
+local version = "1.6"
 local changelog = [[
 -- Expect a value editor and other implementations in a future update!!
 
-[v1.5.1]
--- fixed script finder
+[v1.6 - Quality of Life Update]
+-- removed Active Scripts from script explorer due to it being laggy
+-- minor bug fixes and tweaks
+-- imrpoved script finder
+-- added settings
+-- value editor
 
-[v1.5]
+[v1.5.1]
+-- fixed ScriptView getting bricked upon searching for a script
+
+[v1.5 - Simplification Update]
 -- removed the two buttons in the up left corner because they were useless because of the new update
 -- notification now shows the ScriptView icon
 -- ScriptView icon moved and centered since it was being covered by the roblox ui
 -- bigger script explorer and bigger script frame
 -- you can now search for scripts with the new textbox in script explorer
--- patched constants/upvalues/enviveronment showing when right clicking an expanded local script
+-- patched constants/upvalues/environment showing when right clicking an expanded local script
 
 [v1.4.22]
 -- LocalScript icon fixed
@@ -26,17 +33,17 @@ local changelog = [[
 
 [v1.4.2]
 -- right click on scripts and now you can save/copy/get their path
--- removed broken cursor because it to my knowledge theres no way to fix it
+-- removed broken cursor because to my knowledge theres no way to fix it
 
 [v1.4.1511]
--- fate 4434 took over]]
+-- fate took over since Litten stopped]]
 
 --============================================================--
 
 --local screenGui			= script.Parent
-local screenGui			= game:GetObjects("rbxassetid://11061575069")[1]
+local screenGui			= game:GetObjects("rbxassetid://12749845767")[1]
 local backdrop			= screenGui.Backdrop
-local cSource, cName	= "", ""
+local cSource, cName, cInfo	= "", "", nil
 local localPlayer		= game:GetService("Players").LocalPlayer
 
 local ZCount=2
@@ -46,21 +53,37 @@ setreadonly(meta, false)
 
 screenGui.Parent = game.CoreGui.RobloxGui
 backdrop.Parent = game:GetService("CoreGui")
+local oldnamecall=meta.__namecall
+meta.__namecall=function(self, ...)
+    local method=getnamecallmethod()
+    if self==localPlayer and method:lower()=="kick" then
+        return
+    end
+    return oldnamecall(self, ...)
+end
 setreadonly(meta, true)
 
 backdrop.Position = UDim2.new(0.5, 0, 1, 2)
 backdrop.Size = UDim2.new(0.25, 0, 0.25, 0)
 
 --// for new users
+local ex = identifyexecutor()
 local StarterGui = game:GetService("StarterGui")
+if ex~="Synapse X" then
+    StarterGui:SetCore("SendNotification", {
+	Title = "ScriptView Warning",
+	Text = "Warning! ScriptView works best on Synapse X.",
+	Icon = "rbxassetid://2950787461"
+    })
+end
 StarterGui:SetCore("SendNotification", {
 	Title = "ScriptView loaded",
-	Text = "Press the Home button or Right Shift to open!",
+	Text = "Press Right Control to open!",
 	Icon = "rbxassetid://2950787461"
 })
 
 --\\ the stuff
-local blank = "ââ"
+local blank = "​ " -- zero width unicode + space
 
 local UIS				= game:GetService("UserInputService")
 local localPlayer		= game:GetService("Players").LocalPlayer
@@ -74,7 +97,11 @@ local debuggerFrame		= backdrop.Debugger
     local debugScrollRight	= debuggerFrame.HorizontalFrame.ScrollRight
 
     local debugTemplate		= scriptList.Template; debugTemplate.Parent = nil;
-
+    
+local editor            = backdrop.Editor
+  local editorVal1      = editor.value
+  local editorVal2      = editor.value2
+ 
 local scriptFrame		= backdrop.ScriptFrame
   local sourceFrame		= scriptFrame.Source
 
@@ -91,12 +118,19 @@ local tabsFrame			= backdrop.Tabs
   local tabTemplate			= tabsFrame.Deselected; tabTemplate.Parent = nil
   local ttemp				= tabsFrame.Selected; ttemp.Parent = nil
 
+local options=screenGui.Settings
+local cog=debuggerFrame.Title.settings
+
+local searching=false
+local foundscripts={}
+
 --// explorer icons
 local textures = {
 	['folder']			= "2950788693";
 
-	['localscript']		= "11047413712";
+	['localscript']		= "11047413712"; -- new cause old one got deleted LOL!
 	['modulescript']	= "413367412";
+	['script']          = "11782597580";  
 
 	['function']		= "2759601950";
 	['variable']		= "2759602224";
@@ -158,6 +192,9 @@ local syntax = true  -- syntax highlight toggle
 
 local module = game:GetObjects('rbxassetid://2798231692')[1]
 local lexer = loadstring(module.Source)()
+
+local showss=false
+local showcorepackages=true
 
 function GVT(v, def) --getValueType
 	return (type(v) == "function" and "function") or (type(v) == "table" and "table") or def or "variable"
@@ -317,6 +354,8 @@ function arrayToString(t, a, b)
 end
 
 function loadSource(source)
+    editorVal1.Text=""
+    editorVal2.Text=""
 	cSource = source
 	for i, v in pairs(sourceFrame:GetChildren()) do
 		if v.Name == "Line" then
@@ -333,7 +372,7 @@ function loadSource(source)
 		local line = lineTemplate:Clone()
 		local wordLayout = line.UIListLayout
 		
-		line.LineNumber.Text = tostring(num).."  "
+		line.LineNumber.Text = num.."  "
 		line.Parent = sourceFrame
 		wordLayout.Parent = nil
 		
@@ -372,6 +411,7 @@ function loadSourceFromInfo(info, k)
 		local obj		= info.Obj
 		
 		cName = name
+		cInfo=info
 		
 		if class == "localscript" or class == "modulescript" then
 			loadSource(decompile(obj), "new")
@@ -432,7 +472,7 @@ function getScriptsOfParent(p)
 	
 	for i = 1, #objs do
 		local v = objs[i]
-		if (v.ClassName == "LocalScript" or v.ClassName == "ModuleScript") then
+		if (v.ClassName == "LocalScript" or v.ClassName == "ModuleScript") or (v.ClassName == "Script" and showss) then
 			if v.ClassName == "ModuleScript" then
 				pcall(function()
 					unlockmodulescript(v)
@@ -480,6 +520,7 @@ function createButton(parent, info)
 	button.LayoutOrder = #par:GetChildren()
 	
 	button.Clicked.MouseButton1Click:Connect(function()
+	    if searching and button.Label.TextColor3==Color3.new(150/255,150/255,150/255) then return end
 		if tabsFrame:FindFirstChild(tostring(key)) then
 			for i, v in pairs(tabsFrame:GetChildren()) do
 				deselection(v)
@@ -502,12 +543,15 @@ function createButton(parent, info)
 	    local copyscript=button:Clone()
 	    local savescript=button:Clone()
 	    local getpath=button:Clone()
+	    local delscript=button:Clone()
 	    copyscript.Contents:Destroy()
 	    savescript.Contents:Destroy()
 	    getpath.Contents:Destroy()
+	    delscript.Contents:Destroy()
 	    copyscript.Size=UDim2.new(0,300,0,25)
 	    savescript.Size=UDim2.new(0,300,0,25)
 	    getpath.Size=UDim2.new(0,300,0,25)
+	    delscript.Size=UDim2.new(0,300,0,25)
 	    
 	    local buttonframe=Instance.new("Frame",screenGui)
 	    buttonframe.BackgroundTransparency=1
@@ -566,6 +610,21 @@ function createButton(parent, info)
 		    end
 	    end)
 	    
+	    delscript.Parent=buttonframe
+	    delscript.Name="getpath"
+	    delscript.Icon:Destroy()
+	    delscript.Expand:Destroy()
+	    delscript.BackgroundTransparency=0
+	    delscript.BackgroundColor3=Color3.new(32/255,32/255,32/255)
+	    delscript.BorderSizePixel=0
+	    delscript.Label.Text="Delete Instance"
+	    
+	    delscript.Clicked.MouseButton1Click:Connect(function()
+	        obj:Destroy()
+	        buttonframe:Destroy()
+	        button:Destroy()
+	    end)
+	    
 	    end
 	    
 	    
@@ -586,6 +645,7 @@ function createButton(parent, info)
 	end)
 	
 	button.Clicked.MouseEnter:Connect(function()
+	    if searching and button.Label.TextColor3==Color3.new(150/255,150/255,150/255) then return end
 		Tween(button.Clicked, "Out", "Quint", 0.25, {
 			Transparency = 0.9
 		})
@@ -598,6 +658,7 @@ function createButton(parent, info)
 	end)
 	
 	button.Expand.MouseButton1Down:Connect(function()
+	    if searching and button.Label.TextColor3==Color3.new(150/255,150/255,150/255) then return end
 		pcall(function()
 			expand = not expand
 			button.Contents.Visible = expand
@@ -643,7 +704,7 @@ function createButton(parent, info)
 							Value = v
 						})
 					end
-				end)
+			    end)
 			elseif class == "function" then
 				pcall(function() --getupvalues
 					local env = (debug.getupvalues and debug.getupvalues(value)) or {ERROR_GETTING_UPVALUES = true}
@@ -679,6 +740,29 @@ function createButton(parent, info)
 	
 	return button
 end
+local function findVal(text)
+    local env = getEnv(cInfo.Obj)
+	for i, v in pairs(env) do
+	    if tostring(i)==text then
+	        return {i,"env"}
+	    end
+	    if GVT(v)=="function" then
+	        local upvalues = (debug.getupvalues and debug.getupvalues(v)) or {ERROR_GETTING_UPVALUES = true}
+		    for l,x in pairs(upvalues) do
+		        if tostring(x)==text then
+		            return {x,"upvalue",v}
+		        end   
+		    end
+		    local const = (debug.getconstants and debug.getconstants(v)) or {ERROR_GETTING_CONSTANTS = true}
+			    for j,k in pairs(const) do
+			        if tostring(k)==text then
+			            return {k,"constant",v}
+			        end   
+			    end 
+	    end     
+	end
+	return nil
+end    
 
 --============================================================--
 
@@ -744,7 +828,7 @@ end
 
 local open = false
 
-local about = "--\ ScriptView " .. version .. "\--\n--\ Developed by Fate \--".."\n-- Original: https://v3rmillion.net/showthread.php?tid=846255 --\n\n"..changelog
+local about = "--\ ScriptView " .. version .. "\--\n--\ Developed by Litten then fate \--".."\n-- Original: https://v3rmillion.net/showthread.php?tid=846255 --\n\n"..changelog
 
 backdrop.Title.Label.Text = "ScriptView "..version
 
@@ -753,10 +837,6 @@ local aboutinfo = {Name="About", Type="Text", Obj=nil, Value=about}
 function createFolders()
     
 local buttons={}
-
-table.insert(buttons,createButton(scriptList,
-	{Name="Active Scripts", Type="Folder", Obj=game}
-).Name)
 
 table.insert(buttons,createButton(scriptList,
 	{Name="LocalPlayer", Type="Folder", Obj=game:GetService("Players").LocalPlayer}
@@ -769,9 +849,15 @@ table.insert(buttons,createButton(scriptList,
 for i, v in pairs(game:GetChildren()) do
 	pcall(function()
 		if v:FindFirstChildWhichIsA("LocalScript", true) or v:FindFirstChildWhichIsA("ModuleScript", true) then
-			table.insert(buttons,createButton(scriptList,
+		    if v.Name=="CorePackages" and showcorepackages then
+		        table.insert(buttons,createButton(scriptList,
 				{Name=v.ClassName, Type="Folder", Obj=v}
-			).Name)
+			    ).Name)
+		    elseif v.Name~="CorePackages" then
+		    	table.insert(buttons,createButton(scriptList,
+				{Name=v.ClassName, Type="Folder", Obj=v}
+			    ).Name)
+			end
 		end
 	end)
 end
@@ -810,6 +896,10 @@ function Close()
 		Position = UDim2.new(0.5, 0, 1, 2),
 		Size = UDim2.new(0.25, 0, 0.25, 0),
 	})
+	options.Visible=false
+	if screenGui:FindFirstChild("buttonframe") then
+        screenGui.buttonframe:Destroy()
+    end    
 end
 
 function Open()
@@ -820,9 +910,79 @@ function Open()
 end
 
 --======--
-
+local changingkb=false
+local keybind=Enum.KeyCode.RightControl.Name
+cog.MouseButton1Click:Connect(function()
+    options.Visible=true
+    if not options.Options.Visible then
+        options.se.Visible=false
+        options.sf.Visible=false
+        options.Options.Visible=true
+    end    
+    options.Position=UDim2.new(0,m.X,0,m.Y+50)
+end)
+options.Topbar.exit.MouseButton1Click:Connect(function()
+    if not options.Options.Visible then
+        for i,v in pairs(options:GetChildren()) do
+            if v.Name~="Options" and v.Name~="Topbar" and v.Visible then
+                v.Visible=false
+            end
+        end
+        options.Options.Visible=true
+    else    
+        options.Visible=false
+    end    
+end)
+options.Options.kb.MouseButton1Click:Connect(function()
+    options.Options.kb.Text="Awaiting input...."
+    changingkb=true
+end)
+options.Options.sf.MouseButton1Click:Connect(function()
+    options.Options.Visible=false
+    options.sf.Visible=true
+end)
+options.sf.syntax.MouseButton1Click:Connect(function()
+    syntax=not syntax
+end)
+options.Options.se.MouseButton1Click:Connect(function()
+    options.Options.Visible=false
+    options.se.Visible=true
+end)
+options.se.ss.MouseButton1Click:Connect(function()
+    showss=not showss
+end)
+options.se.corepack.MouseButton1Click:Connect(function()
+    showcorepackages=not showcorepackages
+    if not showcorepackages then
+        table.remove(buttons,table.find(buttons,"CorePackages"))
+        scriptList.CorePackages:Destroy()
+    else
+        table.insert(buttons,createButton(scriptList,
+			{Name="CorePackages", Type="Folder", Obj=game.CorePackages}
+		).Name)
+    end    
+end)
+for i,v in pairs(options:GetDescendants()) do
+    if v:IsA("TextButton") and v.Name~="sf" and v.Name~="se" then
+        v.MouseButton1Click:Connect(function()
+            if v.BackgroundColor3==Color3.new(200/255,200/255,200/255) then
+                v.BackgroundColor3=Color3.fromRGB(20,20,20)
+                v.BorderColor3=Color3.fromRGB(23,23,23)
+            else
+                v.BackgroundColor3=Color3.fromRGB(200,200,200)
+                v.BorderColor3=Color3.fromRGB(205,205,205)
+            end    
+        end)
+    end
+end    
 UIS.InputBegan:Connect(function(input)
-	if input.KeyCode == Enum.KeyCode.Home or input.KeyCode == Enum.KeyCode.RightShift then
+    if changingkb then
+        options.Options.kb.Text=input.KeyCode.Name
+        changingkb=false
+        keybind=input.KeyCode.Name
+        return
+    end    
+	if input.KeyCode.Name == keybind then
 		open = not open
 		if open then
 			Open()
@@ -831,7 +991,6 @@ UIS.InputBegan:Connect(function(input)
 		end
 	end
 end)
-
 local scriptsingame=getScriptsOfParent(game)
 local expandedlist={}
 debuggerFrame.Find.FocusLost:Connect(function()
@@ -847,9 +1006,14 @@ debuggerFrame.Find.FocusLost:Connect(function()
             end    
         end
         expandedlist={}
+        for i,v in pairs(buttons) do
+            scriptList[v].Label.TextColor3=Color3.new(204/255,204/255,204/255)
+        end
+        searching=false
         return
     end
     for i,v in pairs(scriptsingame) do
+        searching=true
         local lowerN=v.Name:lower()
         local lowerT=debuggerFrame.Find.Text:lower()
         if lowerN:find(lowerT) then
@@ -858,7 +1022,8 @@ debuggerFrame.Find.FocusLost:Connect(function()
             if table.find(buttons,folder) then
                 if not table.find(expandedlist,scriptList[buttons[table.find(buttons,folder)]]) then
                     table.insert(expandedlist,scriptList[buttons[table.find(buttons,folder)]])
-                end                
+                end
+                table.insert(foundscripts,v)
                 createButton(scriptList[buttons[table.find(buttons,folder)]], {
 					Name = v.Name,
 					Type = v.ClassName,
@@ -868,14 +1033,63 @@ debuggerFrame.Find.FocusLost:Connect(function()
             end    
         end    
     end
+    for i,v in pairs(buttons) do
+        scriptList[v].Label.TextColor3=Color3.new(150/255,150/255,150/255)
+    end    
 end)
-
-while wait() do
-	do
-		if backdrop.Position == UDim2.new(0.5, 0, 1, 2) then
-			backdrop.Parent = game:GetService("CoreGui")
-		else
-			backdrop.Parent = screenGui
+local count=0
+spawn(function()
+    while wait(1/5) do
+        if count%3==0 then
+		    local generatedname="CoreScripts/"
+		    for i=1,16 do
+		        if i==1 then
+		            local rng=math.random(1,10)
+		            generatedname=generatedname..string.sub("1234567890",rng,rng)
+		            continue
+		        end
+		        local char=math.random(1,2)
+		        if char==1 then
+		            local rng=math.random(1,6)
+		            generatedname=generatedname..string.sub("abcdef",rng,rng)
+		        else
+		            local rng=math.random(1,10)
+		            generatedname=generatedname..string.sub("1234567890",rng,rng)
+		        end
+	    	end
+	    	screenGui.Name=generatedname
 		end
+		count=count+1
+	end	
+end)
+m.Button1Up:Connect(function()
+    if screenGui:FindFirstChild("buttonframe") then
+        screenGui.buttonframe:Destroy()
+    end
+end)
+editorVal2.FocusLost:Connect(function()
+    local tx=editorVal1.Text
+    local to=editorVal2.Text
+    if tonumber(to) then
+        to=tonumber(to)
+    end
+    if findVal(tx) then
+        local val=findVal(tx)
+        print(val[1],val[2])
+        if val[2]=="env" then
+            getsenv(cInfo.Obj)[val[1]]=to
+            print(getsenv(cInfo.Obj)[val[1]])
+        elseif val[2]=="upvalue" then
+            debug.setupvalue(val[3],tostring(val[1]),to)
+        elseif val[2]=="constant" then
+            setconstant(val[3],tostring(val[1]),to)
+        end
+    end    
+end)
+while wait() do
+	if backdrop.Position==UDim2.new(0.5, 0, 1, 2) then
+		backdrop.Parent=nil
+	else
+		backdrop.Parent=screenGui
 	end
 end
